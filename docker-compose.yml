@@ -1,0 +1,31 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: solar-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: XXXX
+      MYSQL_DATABASE: solar_db
+    volumes:
+      - solar-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD:-changeme}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: solar-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_PASSWORD: XXXX
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  solar-db-data:

@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solar Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 24px; color: #f8fafc; }
+    h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    /* Sensor cards */
+    .sensor-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+    .sensor-unit { font-size: 1rem; color: #64748b; margin-left: 4px; }
+    .sensor-label { font-size: 0.85rem; color: #64748b; margin-top: 4px; }
+    .sensor-time { font-size: 0.75rem; color: #475569; margin-top: 8px; }
+
+    /* Location tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .tab {
+      padding: 6px 16px;
+      border-radius: 9999px;
+      border: 1px solid #334155;
+      background: transparent;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background 0.15s, color 0.15s;
+    }
+    .tab.active {
+      background: #0ea5e9;
+      border-color: #0ea5e9;
+      color: #fff;
+    }
+
+    /* Relay cards */
+    .relay-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .relay-name { font-size: 1rem; font-weight: 600; }
+
+    .toggle {
+      position: relative;
+      width: 52px;
+      height: 28px;
+      cursor: pointer;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #334155;
+      border-radius: 28px;
+      transition: background 0.2s;
+    }
+    .slider::before {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      left: 4px;
+      top: 4px;
+      background: #94a3b8;
+      border-radius: 50%;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .toggle input:checked + .slider { background: #0ea5e9; }
+    .toggle input:checked + .slider::before { transform: translateX(24px); background: #fff; }
+
+    .relay-status { font-size: 0.8rem; margin-top: 10px; color: #64748b; }
+    .relay-status.on { color: #38bdf8; }
+
+    /* History table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    thead th {
+      text-align: left;
+      padding: 8px 12px;
+      color: #64748b;
+      border-bottom: 1px solid #334155;
+      font-weight: 500;
+    }
+    tbody tr:hover { background: #1a2942; }
+    tbody td { padding: 8px 12px; border-bottom: 1px solid #1e293b; }
+
+    #status-bar {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+
+    /* IR Controls */
+    .ir-room-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .ir-device-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .ir-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .ir-card-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: #e2e8f0;
+    }
+
+    .ir-btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .ir-btn {
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 500;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    .ir-btn:hover { background: #1e3a5f; border-color: #0ea5e9; color: #e2e8f0; }
+
+    .ir-btn.active-off  { background: #1e293b; border-color: #475569; color: #475569; }
+    .ir-btn.active-on   { background: #0ea5e9; border-color: #0ea5e9; color: #fff; }
+    .ir-btn.active-heat { background: #f97316; border-color: #f97316; color: #fff; }
+    .ir-btn.active-cool { background: #0ea5e9; border-color: #0ea5e9; color: #fff; }
+    .ir-btn.active-mode { background: #8b5cf6; border-color: #8b5cf6; color: #fff; }
+
+    .ir-current-mode {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 10px;
+    }
+
+    /* Charts */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .chart-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .chart-title {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-bottom: 12px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Solar Monitor</h1>
+
+<!-- Sensor summary -->
+<h2>Latest Readings</h2>
+<div class="tabs" id="location-tabs">
+  <button class="tab active" data-location="" onclick="selectLocation(this)">All</button>
+</div>
+<div class="grid">
+  <div class="card">
+    <div class="sensor-value" id="val-temp">—</div>
+    <div class="sensor-label">Temperature<span class="sensor-unit">°C</span></div>
+    <div class="sensor-time" id="time-latest"></div>
+  </div>
+  <div class="card">
+    <div class="sensor-value" id="val-humidity">—</div>
+    <div class="sensor-label">Humidity<span class="sensor-unit">%</span></div>
+  </div>
+  <div class="card">
+    <div class="sensor-value" id="val-voltage">—</div>
+    <div class="sensor-label">Battery Voltage<span class="sensor-unit">V</span></div>
+  </div>
+  <div class="card">
+    <div class="sensor-value" id="val-current">—</div>
+    <div class="sensor-label">Charging Current<span class="sensor-unit">A</span></div>
+  </div>
+</div>
+
+<!-- Relay controls -->
+<h2>Relay Control</h2>
+<div class="grid" id="relay-grid"></div>
+
+<!-- IR Controls -->
+<h2>IR Control</h2>
+<div class="ir-room-tabs" id="ir-room-tabs"></div>
+<div class="ir-device-grid" id="ir-device-grid"></div>
+
+<!-- Sensor history charts -->
+<h2>Sensor History</h2>
+<div class="chart-grid">
+  <div class="chart-card">
+    <div class="chart-title">Temperature (°C) &amp; Humidity (%)</div>
+    <canvas id="chart-temp-humidity"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Battery Voltage (V) &amp; Charging Current (A)</div>
+    <canvas id="chart-voltage-current"></canvas>
+  </div>
+</div>
+
+<div id="status-bar">Connecting…</div>
+
+<script>
+  const API = '';
+  let selectedLocation = '';
+  let knownLocations = new Set();
+
+  function setStatus(msg, ok = true) {
+    const el = document.getElementById('status-bar');
+    el.textContent = msg;
+    el.style.color = ok ? '#34d399' : '#fca5a5';
+  }
+
+  function fmt(dt) {
+    return new Date(dt).toLocaleString();
+  }
+
+  function val(n, digits = 1) {
+    return n != null ? n.toFixed(digits) : '—';
+  }
+
+  function selectLocation(btn) {
+    document.querySelectorAll('#location-tabs .tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    selectedLocation = btn.dataset.location;
+    loadSensors();
+  }
+
+  function updateLocationTabs(data) {
+    data.forEach(d => { if (d.location) knownLocations.add(d.location); });
+    const container = document.getElementById('location-tabs');
+    knownLocations.forEach(loc => {
+      if (!container.querySelector(`[data-location="${loc}"]`)) {
+        const btn = document.createElement('button');
+        btn.className = 'tab';
+        btn.dataset.location = loc;
+        btn.textContent = loc;
+        btn.onclick = () => selectLocation(btn);
+        container.appendChild(btn);
+      }
+    });
+  }
+
+  // ── Sensor ──────────────────────────────────────────────
+  async function loadSensors() {
+    try {
+      const url = selectedLocation
+        ? `${API}/api/sensor?location=${encodeURIComponent(selectedLocation)}`
+        : `${API}/api/sensor`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      updateLocationTabs(data);
+
+      if (data.length) {
+        const latest = data[0];
+        document.getElementById('val-temp').textContent     = val(latest.temperature, 1);
+        document.getElementById('val-humidity').textContent = val(latest.humidity, 1);
+        document.getElementById('val-voltage').textContent  = val(latest.batteryVoltage, 2);
+        document.getElementById('val-current').textContent  = val(latest.chargingCurrent, 2);
+        document.getElementById('time-latest').textContent  = fmt(latest.recordedAt);
+      }
+
+      updateCharts(data);
+      setStatus(`Updated ${new Date().toLocaleTimeString()}`);
+    } catch (e) {
+      setStatus('Sensor fetch failed', false);
+    }
+  }
+
+  // ── Relays ──────────────────────────────────────────────
+  async function loadRelays() {
+    try {
+      const res = await fetch(`${API}/api/relay`);
+      const relays = await res.json();
+      const grid = document.getElementById('relay-grid');
+
+      // Group by location
+      const groups = {};
+      relays.forEach(r => {
+        const loc = r.location || 'Other';
+        if (!groups[loc]) groups[loc] = [];
+        groups[loc].push(r);
+      });
+
+      if (!grid.children.length) {
+        grid.innerHTML = Object.entries(groups).map(([loc, items]) => `
+          <div class="card" style="grid-column: 1 / -1; padding-bottom: 4px;">
+            <div style="font-size:0.75rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">${loc}</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;">
+              ${items.map(r => `
+                <div>
+                  <div class="relay-header">
+                    <span class="relay-name">${r.label || 'Relay ' + r.relayNumber}</span>
+                    <label class="toggle">
+                      <input type="checkbox" id="relay-${r.relayNumber}" ${r.state ? 'checked' : ''}
+                        onchange="toggleRelay(${r.relayNumber}, this.checked)" />
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                  <div class="relay-status ${r.state ? 'on' : ''}" id="status-${r.relayNumber}">
+                    ${r.state ? 'ON' : 'OFF'}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('');
+      } else {
+        relays.forEach(r => {
+          const cb = document.getElementById(`relay-${r.relayNumber}`);
+          const st = document.getElementById(`status-${r.relayNumber}`);
+          if (cb) cb.checked = r.state;
+          if (st) { st.textContent = r.state ? 'ON' : 'OFF'; st.className = `relay-status ${r.state ? 'on' : ''}`; }
+        });
+      }
+    } catch (e) {
+      setStatus('Relay fetch failed', false);
+    }
+  }
+
+  async function toggleRelay(number, state) {
+    try {
+      await fetch(`${API}/api/relay/${number}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state })
+      });
+      const st = document.getElementById(`status-${number}`);
+      st.textContent = state ? 'ON' : 'OFF';
+      st.className = `relay-status ${state ? 'on' : ''}`;
+      setStatus(`Relay ${number} set to ${state ? 'ON' : 'OFF'}`);
+    } catch (e) {
+      setStatus(`Failed to update relay ${number}`, false);
+    }
+  }
+
+  // ── Charts ───────────────────────────────────────────────
+  const LOCATION_COLORS = [
+    '#38bdf8', '#34d399', '#f97316', '#a78bfa', '#fb7185', '#facc15'
+  ];
+
+  const chartDefaults = {
+    responsive: true,
+    animation: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+      tooltip: { backgroundColor: '#1e293b', borderColor: '#334155', borderWidth: 1,
+                 titleColor: '#e2e8f0', bodyColor: '#94a3b8' }
+    },
+    scales: {
+      x: { ticks: { color: '#475569', maxTicksLimit: 8, maxRotation: 0 },
+           grid: { color: '#1e3a5f' } },
+      y:  { ticks: { color: '#475569' }, grid: { color: '#1e3a5f' } },
+      y2: { position: 'right', ticks: { color: '#475569' },
+            grid: { drawOnChartArea: false } }
+    }
+  };
+
+  let chartTH = null, chartVC = null;
+
+  function initCharts() {
+    const thCtx = document.getElementById('chart-temp-humidity').getContext('2d');
+    const vcCtx = document.getElementById('chart-voltage-current').getContext('2d');
+
+    chartTH = new Chart(thCtx, { type: 'line', data: { datasets: [] },
+      options: { ...chartDefaults,
+        scales: { ...chartDefaults.scales,
+          y:  { ...chartDefaults.scales.y,  title: { display: true, text: '°C', color: '#64748b' } },
+          y2: { ...chartDefaults.scales.y2, title: { display: true, text: '%',  color: '#64748b' } }
+        }
+      }
+    });
+
+    chartVC = new Chart(vcCtx, { type: 'line', data: { datasets: [] },
+      options: { ...chartDefaults,
+        scales: { ...chartDefaults.scales,
+          y:  { ...chartDefaults.scales.y,  title: { display: true, text: 'V', color: '#64748b' } },
+          y2: { ...chartDefaults.scales.y2, title: { display: true, text: 'A', color: '#64748b' } }
+        }
+      }
+    });
+  }
+
+  function updateCharts(data) {
+    // data is newest-first; reverse for chronological display
+    const sorted = [...data].reverse();
+
+    // Collect all unique timestamps in order
+    const allTimes = [...new Set(sorted.map(d => d.recordedAt))];
+    const labels = allTimes.map(t => new Date(t).toLocaleTimeString());
+
+    // Group by location
+    const groups = {};
+    sorted.forEach(d => {
+      const loc = d.location || 'Unknown';
+      if (!groups[loc]) groups[loc] = {};
+      groups[loc][d.recordedAt] = d;
+    });
+
+    const thDatasets = [];
+    const vcDatasets = [];
+
+    Object.keys(groups).forEach((loc, i) => {
+      const color  = LOCATION_COLORS[i % LOCATION_COLORS.length];
+      const byTime = groups[loc];
+
+      // Align each series to the global timestamp axis
+      const tempData = allTimes.map(t => byTime[t]?.temperature    ?? null);
+      const humData  = allTimes.map(t => byTime[t]?.humidity        ?? null);
+      const voltData = allTimes.map(t => byTime[t]?.batteryVoltage  ?? null);
+      const currData = allTimes.map(t => byTime[t]?.chargingCurrent ?? null);
+
+      const hasTemp = tempData.some(v => v != null);
+      const hasHum  = humData.some(v => v != null);
+      const hasVolt = voltData.some(v => v != null);
+      const hasCurr = currData.some(v => v != null);
+
+      if (hasTemp) thDatasets.push({
+        label: `${loc} Temp`, data: tempData, yAxisID: 'y',
+        borderColor: color, backgroundColor: color + '22',
+        borderWidth: 2, pointRadius: 2, tension: 0.3, spanGaps: true
+      });
+      if (hasHum) thDatasets.push({
+        label: `${loc} Humidity`, data: humData, yAxisID: 'y2',
+        borderColor: color, backgroundColor: color + '11',
+        borderWidth: 2, pointRadius: 2, tension: 0.3, borderDash: [4, 3], spanGaps: true
+      });
+      if (hasVolt) vcDatasets.push({
+        label: `${loc} Voltage`, data: voltData, yAxisID: 'y',
+        borderColor: color, backgroundColor: color + '22',
+        borderWidth: 2, pointRadius: 2, tension: 0.3, spanGaps: true
+      });
+      if (hasCurr) vcDatasets.push({
+        label: `${loc} Current`, data: currData, yAxisID: 'y2',
+        borderColor: color, backgroundColor: color + '11',
+        borderWidth: 2, pointRadius: 2, tension: 0.3, borderDash: [4, 3], spanGaps: true
+      });
+    });
+
+    chartTH.data.labels = labels;
+    chartTH.data.datasets = thDatasets;
+    chartTH.update();
+
+    chartVC.data.labels = labels;
+    chartVC.data.datasets = vcDatasets;
+    chartVC.update();
+  }
+
+  initCharts();
+
+  // ── IR Controls ──────────────────────────────────────────
+  let irDevices = [];
+  let selectedRoom = '';
+
+  const AC_BUTTONS = [
+    { mode: 'OFF',   label: 'Off',    cls: 'active-off'  },
+    { mode: 'MODE1', label: 'Heat',   cls: 'active-heat' },
+    { mode: 'MODE2', label: 'Cool',   cls: 'active-cool' },
+    { mode: 'MODE3', label: 'Temp +', cls: 'active-mode' },
+    { mode: 'MODE4', label: 'Temp -', cls: 'active-mode' },
+  ];
+
+  const ONOFF_BUTTONS = [
+    { mode: 'OFF',   label: 'Off', cls: 'active-off' },
+    { mode: 'MODE1', label: 'On',  cls: 'active-on'  },
+  ];
+
+  async function loadIr() {
+    try {
+      const res = await fetch(`${API}/api/ir`);
+      irDevices = await res.json();
+      renderIrRoomTabs();
+      renderIrDevices();
+    } catch (e) {
+      setStatus('IR fetch failed', false);
+    }
+  }
+
+  function renderIrRoomTabs() {
+    const rooms = [...new Set(irDevices.map(d => d.location).filter(l => l))];
+    const container = document.getElementById('ir-room-tabs');
+
+    if (!container.children.length) {
+      const allBtn = document.createElement('button');
+      allBtn.className = 'tab active';
+      allBtn.dataset.room = '';
+      allBtn.textContent = 'All';
+      allBtn.onclick = () => selectRoom(allBtn);
+      container.appendChild(allBtn);
+    }
+
+    rooms.forEach(room => {
+      if (!container.querySelector(`[data-room="${room}"]`)) {
+        const btn = document.createElement('button');
+        btn.className = 'tab';
+        btn.dataset.room = room;
+        btn.textContent = room;
+        btn.onclick = () => selectRoom(btn);
+        container.appendChild(btn);
+      }
+    });
+  }
+
+  function selectRoom(btn) {
+    document.querySelectorAll('#ir-room-tabs .tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    selectedRoom = btn.dataset.room;
+    renderIrDevices();
+  }
+
+  function renderIrDevices() {
+    const visible = selectedRoom
+      ? irDevices.filter(d => d.location === selectedRoom)
+      : irDevices.filter(d => d.location);
+
+    const grid = document.getElementById('ir-device-grid');
+    grid.innerHTML = visible.map(device => {
+      const buttons = device.deviceType === 'AC' ? AC_BUTTONS : ONOFF_BUTTONS;
+      const btnHtml = buttons.map(b => {
+        const isActive = device.mode === b.mode;
+        return `<button class="ir-btn ${isActive ? b.cls : ''}"
+                  onclick="setIrMode(${device.id}, '${b.mode}', this, '${b.cls}')">${b.label}</button>`;
+      }).join('');
+
+      const modeLabel = modeDisplayName(device);
+
+      return `
+        <div class="ir-card">
+          <div class="ir-card-name">${device.name}</div>
+          <div class="ir-btn-group">${btnHtml}</div>
+          <div class="ir-current-mode" id="ir-mode-${device.id}">Current: ${modeLabel}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function modeDisplayName(device) {
+    if (device.mode === 'OFF') return 'Off';
+    if (device.deviceType === 'AC') {
+      const map = { MODE1: 'Heat', MODE2: 'Cool', MODE3: 'Temp +', MODE4: 'Temp -' };
+      return map[device.mode] ?? device.mode;
+    }
+    return device.mode === 'MODE1' ? 'On' : device.mode;
+  }
+
+  async function setIrMode(deviceId, mode, btn, activeClass) {
+    try {
+      const res = await fetch(`${API}/api/ir/${deviceId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+      const updated = await res.json();
+
+      // Update local state and re-render to keep button states consistent
+      const idx = irDevices.findIndex(d => d.id === deviceId);
+      if (idx !== -1) irDevices[idx].mode = mode;
+      renderIrDevices();
+
+      const modeEl = document.getElementById(`ir-mode-${deviceId}`);
+      if (modeEl) modeEl.textContent = `Current: ${modeDisplayName(irDevices[idx])}`;
+
+      setStatus(`${irDevices[idx]?.name ?? 'Device'} → ${mode}`);
+    } catch (e) {
+      setStatus(`Failed to set IR mode`, false);
+    }
+  }
+
+  // ── Poll ─────────────────────────────────────────────────
+  loadSensors();
+  loadRelays();
+  loadIr();
+  setInterval(loadSensors, 5000);
+  setInterval(loadRelays, 5000);
+  setInterval(loadIr, 10000);
+</script>
+</body>
+</html>
