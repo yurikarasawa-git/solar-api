@@ -9,7 +9,7 @@ services:
     volumes:
       - solar-db-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD:-changeme}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD:-XXXX}"]
       interval: 10s
       timeout: 5s
       retries: 10
